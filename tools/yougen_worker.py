@@ -130,6 +130,11 @@ async def select_variant(client, source, card, menu, label):
 
 async def process(queue, job, config, panel_override=None):
     payload, job_id = job['payload'], job['id']
+    from tools.provider_identity import valid_voice_name
+    from tools.yougen_bridge import VOICES
+    if valid_voice_name(payload.get('voice')):
+        # Exact requested label still has to occur in the provider menu and caption.
+        VOICES.add(payload['voice'])
     panel = panel_override or Panel(config['panel_url'], config['panel_token'], config['instance_id'])
     # Verify server identity and access before making any request at the provider.
     info = await asyncio.to_thread(panel.request, 'session')
@@ -148,7 +153,7 @@ async def process(queue, job, config, panel_override=None):
         before = last[0].id if last else 0
         queue.update(job_id, 'searching')
         results = await client.inline_query(source, payload['query'])
-        indices = [i for i, row in enumerate(results[:20]) if row.title == payload['result_title']]
+        indices = [i for i, row in enumerate(results) if row.title == payload['result_title']]
         if len(indices) != 1:
             raise BridgeError('Не найден единственный результат с выбранным названием.')
         queue.update(job_id, 'opening')

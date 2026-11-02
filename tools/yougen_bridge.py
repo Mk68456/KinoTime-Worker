@@ -14,7 +14,7 @@ import re
 import sys
 
 BOT = 'Kinobooprivate_bot'
-SERIES_VOICES = {'LostFilm', 'AlexFilm', 'HDrezka Studio', 'TVShows', 'NewStudio', 'Jaskier',
+SERIES_VOICES = {'Оригинал', 'Перевод', 'LostFilm', 'AlexFilm', 'HDrezka Studio', 'TVShows', 'NewStudio', 'Jaskier',
           'Кубик в Кубе | Kubik³', '[EN] Original', '[UA] HDrezka Studio'}
 MOVIE_VOICES = {'Перевод', 'Пифагор', 'Дублированный', 'Володарский Леонид', 'Горчаков Василий',
                 'Живов Юрий', 'Немахов Юрий', 'Сербин Юрий', '[EN] Original', '[UA] ICTV', '[UA] Дублированный',
@@ -139,7 +139,7 @@ async def search(client, entity, query):
 
 async def open_result(client, entity, query, index, expected_title):
     results = await client.inline_query(entity, query)
-    if index < 0 or index >= min(len(results), 20):
+    if index < 0 or index >= len(results):
         raise BridgeError('Номер результата отсутствует. Повторите поиск.')
     item = results[index]
     if item.title != expected_title:

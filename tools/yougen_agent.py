@@ -21,7 +21,7 @@ def error_summary(error):
     import ast
     if isinstance(error, BridgeError):
         message = str(error)
-        for name in ('yougen_agent.py', 'yougen_worker.py', 'yougen_bridge.py', 'yougen_discovery.py'):
+        for name in ('yougen_agent.py', 'yougen_worker.py', 'yougen_bridge.py', 'yougen_discovery.py', 'yougen_options.py'):
             tree = ast.parse(Path(__file__).with_name(name).read_text(encoding='utf-8-sig'))
             for node in ast.walk(tree):
                 if (isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call)
@@ -115,6 +115,21 @@ async def run_once(config, queue):
             or info.get('admin_id') != config['user_id']
             or info.get('bot_username', '').lower() != config['target'].lstrip('@').lower()):
         raise BridgeError('Обновите сервер и проверьте подключение этого обработчика.')
+    if info.get('capabilities', {}).get('provider_options') == 1:
+        lookup = (await asyncio.to_thread(panel.request, 'options/claim', {})).get('lookup')
+        if lookup:
+            from tools.yougen_options import inspect_options
+            try:
+                async with connection(session_path(config['session']), config.get('api_id'), config.get('api_hash'),
+                                      config.get('profile', 'desktop-copy'), config['user_id']) as (client, source):
+                    choices = await asyncio.wait_for(inspect_options(client, source, lookup['payload']), 120)
+                await asyncio.to_thread(panel.request, f"options/{lookup['id']}/result",
+                                        {'lease': lookup['lease'], 'choices': choices})
+                return {'status': 'options_ready', 'lookup_id': lookup['id']}
+            except Exception:
+                await asyncio.to_thread(panel.request, f"options/{lookup['id']}/result",
+                                        {'lease': lookup['lease'], 'choices': None})
+                raise
     claimed = await asyncio.to_thread(panel.request, 'instant/claim', {})
     remote = claimed.get('job')
     if not remote:
@@ -155,6 +170,10 @@ async def run_once(config, queue):
             results = await client.inline_query(source, remote['payload']['query'])
             chosen = matching_result(results, remote['payload'])
         p = remote['payload']
+        from tools.provider_identity import valid_voice_name
+        from tools.yougen_bridge import VOICES
+        if valid_voice_name(p.get('voice')):
+            VOICES.add(p['voice'])
         local = {key: p[key] for key in ('query', 'title', 'content_type', 'voice', 'quality', 'season', 'episode')}
         local['result_title'] = chosen
         job_id = queue.enqueue(local, identity=remote['id'])
