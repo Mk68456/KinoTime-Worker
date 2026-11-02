@@ -43,12 +43,17 @@ def canonical(text):
 
 def matching_result(results, payload):
     matches = []
-    for row in results[:20]:
+    for row in results:
         title, description = row.title or '', row.description or ''
-        kind = 'series' if description.startswith('сериал') else 'movie' if description.startswith('фильм') else None
+        # Provider distinguishes animation; KinoTime groups it by movie/series.
+        header = description.splitlines()[0] if description else ''
+        tag = header.split('|', 1)[0].strip().casefold().replace('ё', 'е')
+        tag = re.sub(r'^[^\w]+', '', tag).strip()
+        kind = ('series' if tag in {'сериал', 'мультсериал', 'аниме-сериал', 'телесериал'}
+                else 'movie' if tag in {'фильм', 'мультфильм', 'аниме-фильм', 'короткометражка'} else None)
         years = re.findall(r'\b(?:19|20)[0-9]{2}\b', description.splitlines()[0] if description else '')
         if (kind == payload['content_type'] and inline_title_matches(title, payload['title'])
-                and (not payload.get('year') or payload['year'] in years)):
+                and (not payload.get('year') or str(payload['year']) in years)):
             matches.append(title)
     if len(matches) != 1:
         raise BridgeError('Нет единственного точного совпадения названия, типа и года.')
