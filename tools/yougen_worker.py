@@ -46,7 +46,10 @@ class Panel:
                 raw = response.read(2 * 1024**2 + 1)
             if len(raw) > 2 * 1024**2:
                 raise BridgeError('Ответ панели слишком большой.')
-            return json.loads(raw)
+            try:
+                return json.loads(raw)
+            except (ValueError, UnicodeError):
+                raise BridgeError('API панели вернул некорректный JSON. Проверьте доступность основного бота и панели.') from None
         except HTTPError as error:
             raise BridgeError(f'API панели вернул HTTP {error.code}. Проверьте подключение /desktop.') from None
 

@@ -7,12 +7,34 @@ from pathlib import Path
 import re
 import sys
 import time
+import traceback
 from urllib.parse import urlsplit
 
 from tools.yougen_bridge import BridgeError, connection, session_path
 from tools.yougen_queue import Queue
 from tools.yougen_worker import Panel, process
 from tools.provider_identity import inline_title_matches
+
+
+def error_summary(error):
+    """Log only code-owned static messages, never remote bodies or credentials."""
+    import ast
+    if isinstance(error, BridgeError):
+        message = str(error)
+        for name in ('yougen_agent.py', 'yougen_worker.py', 'yougen_bridge.py', 'yougen_discovery.py'):
+            tree = ast.parse(Path(__file__).with_name(name).read_text(encoding='utf-8-sig'))
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call)
+                        and isinstance(node.exc.func, ast.Name) and node.exc.func.id == 'BridgeError'
+                        and node.exc.args and isinstance(node.exc.args[0], ast.Constant)
+                        and node.exc.args[0].value == message):
+                    return 'BridgeError: ' + message
+        http = re.search(r'HTTP ([1-5][0-9]{2})', message)
+        if http:
+            return 'BridgeError: API HTTP ' + http[1]
+    frames = traceback.extract_tb(error.__traceback__)
+    where = (' at ' + Path(frames[-1].filename).name + ':' + str(frames[-1].lineno)) if frames else ''
+    return type(error).__name__ + where
 
 
 def canonical(text):
@@ -172,7 +194,7 @@ async def run(config, queue, serve, config_path):
                     continue
                 except Exception:
                     print('Не удалось восстановить подключение /desktop.', file=sys.stderr, flush=True)
-            print('Обработчик остановил попытку: ' + type(error).__name__, file=sys.stderr, flush=True)
+            print('Обработчик остановил попытку: ' + error_summary(error), file=sys.stderr, flush=True)
             if not serve:
                 raise
             await asyncio.sleep(25)
