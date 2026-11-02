@@ -80,14 +80,15 @@ async def pages(client, source, card_id, pattern, *, select=None, max_pages=200)
     raise BridgeError('Превышен предел страниц. План не отправлен.')
 
 
-async def discover(client, source, payload, result_title):
-    results = await client.inline_query(source, payload['query'])
-    indices = [i for i, item in enumerate(results[:20]) if item.title == result_title]
+async def discover(client, source, payload, result_title, *, source_query=None):
+    query = source_query or payload['query']
+    results = await client.inline_query(source, query)
+    indices = [i for i, item in enumerate(results) if item.title == result_title]
     if len(indices) != 1:
         raise BridgeError('Результат поиска изменился.')
     last = await client.get_messages(source, limit=1)
     before = last[0].id if last else 0
-    await open_result(client, source, payload['query'], indices[0], result_title)
+    await open_result(client, source, query, indices[0], result_title)
     card = await wait_card(client, source, before, payload)
     if not full_video_title_matches(video_record(card)['label'], payload['title']):
         raise BridgeError('Полное название видео не совпадает: обход не запущен.')

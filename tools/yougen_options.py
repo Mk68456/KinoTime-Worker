@@ -1,20 +1,27 @@
 """Inspect one film/episode, transferring no media to KinoTime."""
-from tools.yougen_agent import matching_result
+from tools.yougen_agent import resolve_result
 from tools.yougen_bridge import open_result, message_by_id, video_record, plain_label, BridgeError
 from tools.yougen_worker import wait_card
 from tools.yougen_discovery import menu, pages, next_page
-from tools.provider_identity import full_video_title_matches, valid_voice_name
+from tools.provider_identity import valid_voice_name
+from tools.provider_matching import binding_for, media_title_matches
 
 
-async def inspect_options(client, source, payload):
-    results=await client.inline_query(source,payload['query'])
-    title=matching_result(results,payload)
-    index=next(i for i,r in enumerate(results) if r.title==title)
+async def inspect_options(client, source, payload, *, binding_out=None):
+    query,title=await resolve_result(client,source,payload)
+    results=await client.inline_query(source,query)
+    indices=[i for i,r in enumerate(results) if r.title==title]
+    if len(indices)!=1:
+        raise BridgeError('Результат поиска изменился перед открытием.')
+    index=indices[0]
+    if binding_out is not None:
+        binding_out.update(binding_for(results[index], query))
+    payload={**payload,'provider_binding':binding_for(results[index],query)}
     last=await client.get_messages(source,limit=1)
     before=last[0].id if last else 0
-    await open_result(client,source,payload['query'],index,title)
+    await open_result(client,source,query,index,title,expected_binding=binding_for(results[index],query))
     card=await wait_card(client,source,before,payload)
-    if not full_video_title_matches(video_record(card)['label'],payload['title']):
+    if not media_title_matches(video_record(card)['label'],payload):
         raise BridgeError('Полное название видео не совпадает: варианты не показаны.')
     if payload['content_type']=='series':
         if (video_record(card)['season'],video_record(card)['episode']) != (payload['season'],payload['episode']):
@@ -44,7 +51,7 @@ async def inspect_options(client, source, payload):
     await menu(client,source,card.id,'Озвучка')
     await pages(client,source,card.id,r'.+',select=voice,max_pages=10)
     card=await wait_card(client,source,before,payload,voice=voice,target_episode=payload['content_type']=='series')
-    if not full_video_title_matches(video_record(card)['label'],payload['title']):
+    if not media_title_matches(video_record(card)['label'],payload):
         raise BridgeError('Полное название видео изменилось.')
     await menu(client,source,card.id,'Качество')
     return [q for q in await pages(client,source,card.id,r'[0-9]{3,4}p',max_pages=10)
