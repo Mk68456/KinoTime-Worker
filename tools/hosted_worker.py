@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 from pathlib import Path
+import re
 import sys
 
 from tools.yougen_agent import run
@@ -20,9 +21,11 @@ def load_config(directory):
     session = path.parent / 'provider.session'
     if not session.is_file() or session.is_symlink():
         raise ValueError('Не найдена отдельная provider.session.')
-    if not isinstance(config.get('user_id'), int) or config['user_id'] <= 0:
+    if type(config.get('user_id')) is not int or config['user_id'] <= 0:
         raise ValueError('Неверный ID владельца.')
-    if not isinstance(config.get('api_id'), int) or not config.get('api_hash'):
+    api_id, api_hash = config.get('api_id'), config.get('api_hash')
+    if (type(api_id) is not int or not 1 <= api_id <= 2**31 - 1
+            or not isinstance(api_hash, str) or not re.fullmatch(r'[0-9a-fA-F]{32}', api_hash)):
         raise ValueError('Не заданы параметры Telegram API.')
     if config.get('target') != '@kinomobi_bot':
         raise ValueError('Не подтверждён основной бот KinoTime.')
