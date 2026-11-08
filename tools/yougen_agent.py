@@ -12,12 +12,14 @@ from urllib.parse import urlsplit
 
 from tools.yougen_bridge import BridgeError, connection, session_path
 from tools.yougen_queue import Queue
-from tools.yougen_worker import Panel, process
+from tools.yougen_worker import Panel, PanelHTTPError, process
 
 
 def error_summary(error):
     """Log only code-owned static messages, never remote bodies or credentials."""
     import ast
+    if isinstance(error, PanelHTTPError):
+        return 'BridgeError: ' + str(error)
     if isinstance(error, BridgeError):
         message = str(error)
         for name in ('yougen_agent.py', 'yougen_worker.py', 'yougen_bridge.py', 'yougen_discovery.py', 'yougen_options.py'):
@@ -182,9 +184,6 @@ async def run_once(config, queue):
                                       config.get('profile', 'desktop-copy'), config['user_id']) as (client, source):
                     binding = {}
                     choices = await asyncio.wait_for(inspect_options(client, source, lookup['payload'], binding_out=binding), 120)
-                await asyncio.to_thread(panel.request, f"options/{lookup['id']}/result",
-                                        {'lease': lookup['lease'], 'choices': choices, 'binding': binding})
-                return {'status': 'options_ready', 'lookup_id': lookup['id']}
             except ClarificationRequired as error:
                 await asyncio.to_thread(panel.request, f"options/{lookup['id']}/result",
                                         {'lease': lookup['lease'], 'choices': None, 'candidates': error.candidates})
@@ -193,6 +192,10 @@ async def run_once(config, queue):
                 await asyncio.to_thread(panel.request, f"options/{lookup['id']}/result",
                                         {'lease': lookup['lease'], 'choices': None})
                 raise
+            await asyncio.to_thread(panel.request, f"options/{lookup['id']}/result",
+                                    {'lease': lookup['lease'], 'choices': choices or None,
+                                     'binding': binding if choices else None})
+            return {'status': 'options_ready' if choices else 'options_unavailable', 'lookup_id': lookup['id']}
     claimed = await asyncio.to_thread(panel.request, 'instant/claim', {})
     remote = claimed.get('job')
     if not remote:
@@ -287,7 +290,7 @@ async def _run(config, queue, serve, config_path):
                     print('Не удалось заранее обновить /desktop; действующее подключение продолжает работу.',
                           file=sys.stderr, flush=True)
         except Exception as error:
-            if (isinstance(error, BridgeError) and 'HTTP 401' in str(error)
+            if (isinstance(error, PanelHTTPError) and error.status == 401
                     and time.monotonic() - last_auth_repair >= 300):
                 last_auth_repair = time.monotonic()
                 try:

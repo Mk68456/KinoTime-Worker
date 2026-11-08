@@ -25,6 +25,24 @@ class NoRedirect(HTTPRedirectHandler):
         raise BridgeError('Перенаправление API запрещено.')
 
 
+class PanelHTTPError(BridgeError):
+    def __init__(self, status, method, path):
+        parts = path.split('/')
+        routes = {'session', 'options/claim', 'instant/claim', 'batches/claim',
+                  'import', 'provider-import'}
+        if path in routes:
+            route = path
+        elif len(parts) == 2 and parts[0] == 'import':
+            route = 'import/{id}'
+        elif (len(parts) == 3 and parts[0] in {'options', 'instant', 'batches'}
+              and parts[2] in {'draft', 'result', 'heartbeat', 'plan'}):
+            route = f'{parts[0]}/{{id}}/{parts[2]}'
+        else:
+            route = '<unknown>'
+        self.status = status
+        super().__init__(f'API HTTP {status} ({method} /api/desktop/{route})')
+
+
 class Panel:
     def __init__(self, url, token, instance):
         parsed = urlsplit(url)
@@ -53,7 +71,7 @@ class Panel:
             except (ValueError, UnicodeError):
                 raise BridgeError('API панели вернул некорректный JSON. Проверьте доступность основного бота и панели.') from None
         except HTTPError as error:
-            raise BridgeError(f'API панели вернул HTTP {error.code}. Проверьте подключение /desktop.') from None
+            raise PanelHTTPError(error.code, request.get_method(), path) from None
 
 
 def exact_video(message, payload):
