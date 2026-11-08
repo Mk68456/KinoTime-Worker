@@ -65,4 +65,4 @@ async def inspect_options(client, source, payload, *, binding_out=None):
     await menu(client,source,card.id,'Качество')
     return [q for q in await pages(client,source,card.id,r'[0-9]{3,4}p',max_pages=10)
             if q in {'240p','360p','480p','720p','1080p','1440p','2160p'}
-            and not (q == record['quality'] and record['size'] > 2_000_000_000)]
+            and not (q == record['quality'] and record['size'] > 4 * 1024**3)]

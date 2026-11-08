@@ -92,8 +92,8 @@ def episode_name_matches(name, episode):
 
 
 def manifest(payload, record):
-    if record['size'] > 2_000_000_000:
-        raise BridgeError('Видео превышает лимит KinoTime в 2 ГБ. Выберите качество ниже.')
+    if record['size'] > 4 * 1024**3:
+        raise BridgeError('Видео превышает лимит KinoTime в 4 ГБ. Выберите качество ниже.')
     if payload.get('content_type') == 'movie':
         path = f"{payload['voice']} {payload['quality']}/Видео.mp4"
         return {'version': 1, 'title': payload['title'], 'content_type': 'movie',
