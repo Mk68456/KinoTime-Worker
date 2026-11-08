@@ -2,7 +2,7 @@
 from tools.yougen_agent import resolve_result
 from tools.yougen_bridge import open_result, message_by_id, video_record, plain_label, BridgeError
 from tools.yougen_worker import wait_card
-from tools.yougen_discovery import menu, pages, next_page
+from tools.yougen_discovery import menu, pages, next_page, select_episode
 from tools.provider_identity import valid_voice_name
 from tools.provider_matching import binding_for, media_title_matches, identity_score, source_kind_year
 
@@ -38,7 +38,7 @@ async def inspect_options(client, source, payload, *, binding_out=None):
             current=await message_by_id(client,source,card.id)
             if f"Сезон {payload['season']}" not in [plain_label(b.text) for r in current.buttons or [] for b in r]:
                 raise BridgeError('Сезон не подтверждён.')
-            await pages(client,source,card.id,r'[1-9][0-9]{0,2}',select=str(payload['episode']))
+            await select_episode(client, source, card.id, payload['episode'])
             card=await wait_card(client,source,before,payload,target_episode=True)
     await menu(client,source,card.id,'Озвучка')
     # Explicitly keep episode-specific availability, not all voices across a series.

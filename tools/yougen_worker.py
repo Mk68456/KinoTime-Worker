@@ -195,13 +195,13 @@ async def process(queue, job, config, panel_override=None):
             raise BridgeError('Полное название полученного видео не совпадает с запросом.')
         if record['season'] != payload['season'] or record['episode'] != payload['episode']:
             queue.update(job_id, 'selecting_episode')
-            from tools.yougen_discovery import menu, pages
+            from tools.yougen_discovery import menu, pages, select_episode
             await menu(client, source, card.id, 'Серии')
             await pages(client, source, card.id, r'Сезон [1-9][0-9]{0,2}', select=f"Сезон {payload['season']}")
             current = await message_by_id(client, source, card.id)
             if f"Сезон {payload['season']}" not in [plain_label(b.text) for row in current.buttons or [] for b in row]:
                 raise BridgeError('Не подтверждён сезон в меню серий.')
-            await pages(client, source, card.id, r'[1-9][0-9]{0,2}', select=str(payload['episode']))
+            await select_episode(client, source, card.id, payload['episode'])
             card = await wait_card(client, source, before, payload, target_episode=True)
             record = video_record(card)
         if not exact_video(card, payload):
