@@ -30,7 +30,7 @@ class PanelHTTPError(BridgeError):
     def __init__(self, status, method, path):
         parts = path.split('/')
         routes = {'session', 'options/claim', 'instant/claim', 'batches/claim',
-                  'import', 'provider-import'}
+                  'import', 'provider-import', 'provider-queue'}
         if path in routes:
             route = path
         elif len(parts) == 2 and parts[0] == 'import':
@@ -111,8 +111,12 @@ def manifest(payload, record):
 
 
 async def recent_cards(client, source, after):
-    return [m for m in await client.get_messages(source, limit=15, min_id=after)
-            if not m.out and m.sender_id == source.id]
+    from tools.provider_guard import observe
+    messages = [m for m in await client.get_messages(source, limit=15, min_id=after)
+                if not m.out and m.sender_id == source.id]
+    for message in messages:
+        observe(message)
+    return messages
 
 
 async def wait_card(client, source, after, payload, timeout=30, exact=False, voice=None, target_episode=False, allow_navigation=False):

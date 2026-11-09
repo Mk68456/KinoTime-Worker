@@ -29,6 +29,10 @@ async def click(client, source, message, label):
             raise BridgeError('Нет подтверждения перехода меню; повтор не выполнен.') from None
         result = None
     if result and getattr(result, 'message', None):
+        from tools.provider_guard import current
+        guard = current.get()
+        if guard:
+            guard.restrict()
         raise BridgeError('Источник показал ограничение доступа.')
     await asyncio.sleep(1)
 
